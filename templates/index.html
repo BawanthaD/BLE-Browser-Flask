@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>BLE Browser</title>
+  <style>
+    :root{
+      --bg:#0b1220; --card:#121a2a; --text:#e7e9ee; --muted:#a9b0bf; --border:#2a3550;
+      --accent:#3b82f6; --danger:#ef4444; --mono:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    html,body{height:100%;}
+    body{margin:0; background:var(--bg); color:var(--text); font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, sans-serif;}
+    .container{max-width:1200px; margin:0 auto; padding:16px;}
+    .toolbar{display:flex; align-items:center; gap:12px; background:var(--card); border:1px solid var(--border); padding:12px 16px; border-radius:14px; margin-bottom:12px;}
+    .title{font-weight:700;}
+    .dot{width:10px; height:10px; border-radius:9999px; display:inline-block; background:#ef4444;}
+    .dot.on{background:#10b981;}
+    .spacer{flex:1;}
+    .btn{display:inline-flex; align-items:center; justify-content:center; padding:8px 14px; border-radius:10px; border:1px solid var(--border); font-weight:600; cursor:pointer; background:var(--card); color:var(--text); transition:background .15s, border-color .15s, opacity .15s;}
+    .btn:hover{background:#18223a;}
+    .btn-primary{background:var(--accent); border-color:#2f66c6;}
+    .btn-primary:hover{background:#477ff7;}
+    .btn-danger{background:var(--danger); border-color:#c03636;}
+    .btn-danger:hover{background:#ff5555;}
+    .btn:disabled{opacity:.5; cursor:not-allowed;}
+    .card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px;}
+    label{display:block; font-size:12px; color:var(--muted); margin-bottom:6px;}
+    .input, select, input, textarea{width:100%; box-sizing:border-box; color:var(--text); background:#1a2336; border:1px solid var(--border); border-radius:10px; padding:8px 10px;}
+    .muted{color:var(--muted);}
+    .mono{font-family:var(--mono);}
+    .grid-2{display:grid; grid-template-columns: 360px 1fr; gap:14px;}
+    @media (max-width: 980px){ .grid-2{grid-template-columns: 1fr;} }
+    .ctrl-grid{display:grid; grid-template-columns: 1fr 220px; gap:10px; align-items:end;}
+    .ctrl-actions{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+    .workspace{height: calc(100vh - 140px); display:flex; flex-direction:column; gap:14px;}
+    .panes{flex:1 1 auto; display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; min-height:280px;}
+    @media (max-width: 1200px){ .panes{grid-template-columns:1fr 1fr;} }
+    @media (max-width: 980px){  .panes{grid-template-columns:1fr;} }
+    .panel{display:flex; flex-direction:column; gap:10px; background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px; min-height:0;}
+    .panel-head{display:flex; align-items:center; justify-content:space-between;}
+    .panel-body{flex:1 1 auto; min-height:0; background:#0e1627; border:1px solid var(--border); border-radius:10px; padding:10px; overflow:auto;}
+    pre{margin:0; white-space:pre-wrap; word-wrap:break-word;}
+    details.config{margin-top:12px;}
+    details.config summary{cursor:pointer; user-select:none; padding:8px 10px; background:#0e1627; border:1px solid var(--border); border-radius:10px;}
+    .kv{display:grid; grid-template-columns:auto 1fr; gap:6px 12px; font-family:var(--mono);}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Top bar -->
+    <div class="toolbar">
+      <div class="title">BLE Browser</div>
+      <span id="connDot" class="dot"></span>
+      <span id="connText" class="muted">Disconnected</span>
+      <div class="spacer"></div>
+      <button id="scanBtn" class="btn">Scan</button>
+      <button id="connectBtn" class="btn btn-primary" disabled>Connect</button>
+      <button id="disconnectBtn" class="btn btn-danger" disabled>Disconnect</button>
+    </div>
+
+    <!-- Main -->
+    <div class="workspace">
+      <div class="grid-2">
+        <!-- Devices -->
+        <section class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <h2 style="margin:0; font-size:15px;">Devices</h2>
+            <div id="scanInfo" class="muted" style="font-size:12px;">Idle</div>
+          </div>
+          <label>Choose device</label>
+          <select id="deviceSel"></select>
+        </section>
+
+        <!-- Characteristic Controls -->
+        <section class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <h2 style="margin:0; font-size:15px;">Characteristic Controls</h2>
+            <span id="charProps" class="muted" style="font-size:12px;">Props: -</span>
+          </div>
+
+          <div class="ctrl-grid">
+            <div>
+              <label>Characteristic</label>
+              <select id="charSel"></select>
+            </div>
+            <div class="ctrl-actions">
+              <button id="readBtn" class="btn" disabled>Read</button>
+              <button id="notifyBtn" class="btn btn-primary" disabled>Subscribe</button>
+            </div>
+          </div>
+
+          <div class="ctrl-grid" style="margin-top:10px;">
+            <div>
+              <label>Hex to write (e.g. 04 00 00 64)</label>
+              <input id="writeHex" class="mono" placeholder="00 00 00..." />
+            </div>
+            <div>
+              <button id="writeBtn" class="btn btn-primary" style="width:100%;" disabled>Write</button>
+            </div>
+          </div>
+
+          <!-- Computed config (per UUID) -->
+          <details class="config">
+            <summary>Computed config (per characteristic)</summary>
+            <div style="margin-top:10px; display:grid; gap:8px;">
+              <div class="muted" style="font-size:12px; line-height:1.5;">
+                Define one formula per line. Use <code class="mono">b0..bN</code> (bytes), <code class="mono">b</code> (list), and helpers:
+                <code class="mono">u16le(i)</code>, <code class="mono">u16be(i)</code>, <code class="mono">u32le(i)</code>, <code class="mono">u32be(i)</code>.
+                Example: <code class="mono">temperature = (b1*256 + b0)/10</code>
+              </div>
+              <textarea id="formulaText" class="mono" rows="6" placeholder="temperature = (b1*256 + b0)/10&#10;rpm = u16le(2)"></textarea>
+              <div style="display:flex; gap:8px; justify-content:flex-end;">
+                <button id="loadCfgBtn" class="btn">Load saved</button>
+                <button id="saveCfgBtn" class="btn btn-primary">Save config</button>
+              </div>
+            </div>
+          </details>
+        </section>
+      </div>
+
+      <!-- Three panes: Computed (live) + Values + Log -->
+      <div class="panes">
+        <section class="panel">
+          <div class="panel-head"><h3 style="margin:0;">Computed Values</h3></div>
+          <div id="computedBox" class="panel-body">
+            <div class="muted">Subscribe to a characteristic to see live computed values…</div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><h3 style="margin:0;">Values</h3></div>
+          <div id="valuesBox" class="panel-body mono"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h3 style="margin:0;">Log</h3>
+            <button id="clearLog" class="btn">Clear</button>
+          </div>
+          <div class="panel-body"><pre id="logBox" class="mono" style="font-size:12px;"></pre></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---- utils
+    const qs = (s, r=document)=>r.querySelector(s);
+    const logBox = qs('#logBox');
+    const valuesBox = qs('#valuesBox');
+    const computedBox = qs('#computedBox');
+
+    function log(line){ logBox.textContent += line + "\n"; logBox.parentElement.scrollTop = logBox.parentElement.scrollHeight; }
+    function addValue(line){ const d=document.createElement('div'); d.textContent=line; valuesBox.appendChild(d); valuesBox.scrollTop = valuesBox.scrollHeight; }
+    function setConn(connected, address){ qs('#connDot').classList.toggle('on', !!connected); qs('#connText').textContent = connected ? `Connected: ${address||''}` : 'Disconnected'; qs('#disconnectBtn').disabled = !connected; }
+    function parseHex(text){
+      if(!text) return [];
+      let t = text.replace(/0x/ig,'').replace(/[^0-9a-fA-F]/g,' ');
+      const parts = t.split(/\s+/).filter(Boolean);
+      const out = [];
+      for(let p of parts){
+        if(p.length<=2){ out.push(parseInt(p,16)&0xFF); }
+        else{ if(p.length%2===1) p='0'+p; for(let i=0;i<p.length;i+=2) out.push(parseInt(p.slice(i,i+2),16)&0xFF); }
+      }
+      return out;
+    }
+    function renderComputed(obj){
+      computedBox.innerHTML = '';
+      const wrap = document.createElement('div'); wrap.className='kv';
+      Object.entries(obj).forEach(([k,v])=>{
+        const kdiv = document.createElement('div'); kdiv.textContent = k + ':'; kdiv.style.opacity = .75;
+        const vdiv = document.createElement('div'); vdiv.textContent = (v===null||v===undefined)?'':String(v);
+        wrap.appendChild(kdiv); wrap.appendChild(vdiv);
+      });
+      computedBox.appendChild(wrap);
+    }
+
+    // ---- elements
+    const scanBtn = qs('#scanBtn');
+    const connectBtn = qs('#connectBtn');
+    const disconnectBtn = qs('#disconnectBtn');
+    const deviceSel = qs('#deviceSel');
+    const scanInfo = qs('#scanInfo');
+    const charSel = qs('#charSel');
+    const charProps = qs('#charProps');
+    const readBtn = qs('#readBtn');
+    const writeBtn = qs('#writeBtn');
+    const writeHex = qs('#writeHex');
+    const notifyBtn = qs('#notifyBtn');
+    const clearLog = qs('#clearLog');
+    const formulaText = qs('#formulaText');
+    const saveCfgBtn = qs('#saveCfgBtn');
+    const loadCfgBtn = qs('#loadCfgBtn');
+
+    let devices = [], chars = [], currentUUID = '';
+
+    // ---- WebSocket
+    (function openWS(){
+      let ws;
+      try{
+        ws = new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');
+        ws.onmessage = (ev)=>{
+          try{
+            const msg = JSON.parse(ev.data);
+            if(msg.type==='hello') return;
+            if(msg.type==='status'){
+              log('[STATUS] '+msg.message);
+              if(msg.message.toLowerCase().includes('disconnected')) setConn(false);
+              return;
+            }
+            if(msg.type==='log'){ log(msg.line); return; }
+            if(msg.type==='notify'){ addValue(`[${msg.uuid}] ${msg.hex} (len=${msg.length})`); return; }
+            if(msg.type==='computed' && msg.uuid === currentUUID){ renderComputed(msg.values || {}); return; }
+          }catch(e){}
+        };
+        ws.onclose = ()=> setTimeout(openWS, 1000);
+      }catch(e){}
+    })();
+
+    // ---- Actions
+    scanBtn.onclick = async ()=>{
+      try{
+        scanInfo.textContent='Scanning…'; deviceSel.innerHTML=''; connectBtn.disabled = true;
+        const resp = await fetch('/api/scan', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({timeout:5})});
+        const data = await resp.json();
+        devices = data.devices || [];
+        for(let i=0;i<devices.length;i++){
+          const d = devices[i], o = document.createElement('option');
+          o.value=i; o.textContent=`${d.name||'(Unknown)'} [${d.address||''}] ${d.rssi!=null?`(RSSI ${d.rssi} dBm)`:''}`;
+          deviceSel.appendChild(o);
+        }
+        scanInfo.textContent=`Found ${devices.length} device(s)`; connectBtn.disabled = devices.length===0;
+      }catch(err){ scanInfo.textContent='Scan failed'; log('[ERROR] Scan: '+err); }
+    };
+
+    connectBtn.onclick = async ()=>{
+      const idx = parseInt(deviceSel.value||'0',10);
+      if(isNaN(idx) || !devices[idx]) return;
+      const address = devices[idx].address;
+      log('[ACTION] Connect to '+address);
+      try{
+        const resp = await fetch('/api/connect', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({address})});
+        const data = await resp.json();
+        if(!data.connected){ log('[ERROR] '+(data.error||'Failed to connect')); setConn(false); return; }
+        setConn(true, address);
+
+        chars = data.characteristics || []; charSel.innerHTML=''; valuesBox.innerHTML=''; computedBox.innerHTML='';
+        chars.forEach(c=>{
+          const o=document.createElement('option');
+          o.value=c.uuid; o.textContent=c.description ? `${c.description} (${c.uuid})` : c.uuid;
+          charSel.appendChild(o);
+        });
+        if(chars.length){ currentUUID=chars[0].uuid; updateProps(); await loadConfigForCurrent(); }
+      }catch(err){ log('[ERROR] Connect: '+err); setConn(false); }
+    };
+
+    disconnectBtn.onclick = async ()=>{ try{ await fetch('/api/disconnect',{method:'POST'}); }catch(_){}
+      setConn(false); };
+
+    function updateProps(){
+      const c = chars.find(x=>x.uuid===currentUUID);
+      charProps.textContent = 'Props: ' + (c && c.props ? c.props.join(',') : '-');
+      const p = c && c.props ? c.props : [];
+      readBtn.disabled  = !p.includes('read');
+      notifyBtn.disabled= !(p.includes('notify') || p.includes('indicate'));
+      writeBtn.disabled = !(p.includes('write') || p.includes('write-without-response'));
+      notifyBtn.textContent='Subscribe';
+    }
+
+    charSel.onchange = async ()=>{ currentUUID = charSel.value; updateProps(); await loadConfigForCurrent(); };
+
+    readBtn.onclick = async ()=>{
+      if(!currentUUID) return;
+      const resp = await fetch('/api/read', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({uuid:currentUUID})});
+      const data = await resp.json();
+      if(data.ok){
+        const hex = (data.data||[]).map(b=>b.toString(16).padStart(2,'0')).join(' ').toUpperCase();
+        addValue(`[${currentUUID}] ${hex} (len=${(data.data||[]).length})`);
+      } else { log('[READ ERROR] '+(data.error||'')); }
+    };
+
+    writeBtn.onclick = async ()=>{
+      if(!currentUUID) return;
+      const bytes = parseHex(writeHex.value);
+      const resp = await fetch('/api/write', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({uuid:currentUUID, bytes})});
+      const data = await resp.json();
+      if(!data.ok) log('[WRITE ERROR] '+(data.error||'')); 
+    };
+
+    notifyBtn.onclick = async ()=>{
+      if(!currentUUID) return;
+      const resp = await fetch('/api/notify', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({uuid:currentUUID})});
+      const data = await resp.json();
+      if(data.ok) notifyBtn.textContent = data.subscribed ? 'Unsubscribe' : 'Subscribe';
+      else log('[NOTIFY ERROR] '+(data.error||'')); 
+    };
+
+    clearLog.onclick = ()=>{ logBox.textContent=''; };
+
+    // ---- Config save/load
+    async function loadConfigForCurrent(){
+      if(!currentUUID){ formulaText.value=''; return; }
+      try{
+        const resp = await fetch('/api/config/get', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({uuid:currentUUID})});
+        const data = await resp.json();
+        const lines = (data.formulas||[]);
+        formulaText.value = lines.join('\n');
+      }catch(_){ formulaText.value=''; }
+    }
+    loadCfgBtn.onclick = loadConfigForCurrent;
+
+    saveCfgBtn.onclick = async ()=>{
+      if(!currentUUID) return;
+      const lines = formulaText.value.split('\n').map(s=>s.trim());
+      const resp = await fetch('/api/config/save', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({uuid:currentUUID, formulas:lines})});
+      const data = await resp.json();
+      if(!data.ok) log('[CONFIG ERROR] Could not save');
+    };
+  </script>
+</body>
+</html>

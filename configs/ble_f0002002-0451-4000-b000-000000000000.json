@@ -1,0 +1,24 @@
+{
+  "uuid": "f0002002-0451-4000-b000-000000000000",
+  "formulas": [
+    "current status = b0",
+    "error code = b1",
+    "temperature 1 = b2*256 + b3",
+    "temperature 2 = b4*256 + b5",
+    "temperature 3 = b6*256 + b7",
+    "temperature 4 = b8*256 + b9",
+    "pressure 1 = b10*((256^3)) + b11*((256^2)) + b12*256 + b13",
+    "pressure 2 = b14*((256^3)) + b15*((256^2)) + b16*256 + b17",
+    "pressure 3 = b18*((256^3)) + b19*((256^2)) + b20*256 + b21",
+    "pressure 4 = b22*((256^3)) + b23*((256^2)) + b24*256 + b25",
+    "pressure 5 = b26*((256^3)) + b27*((256^2)) + b28*256 + b29",
+    "pressure 6 = b30*((256^3)) + b31*((256^2)) + b32*256 + b33",
+    "level sensor 1 = b33*256 + b34",
+    "level sensor 2 = b35*256 + b36",
+    "Flow sensor 1 = b38*256 + b39",
+    "Flow sensor 2 = b40*256 + b41",
+    "Flow sensor 3 = b42*256 + b43",
+    "Flow sensor 4 = b44*256 + b45",
+    "Flow sensor 5 = b46*256 + b47"
+  ]
+}
