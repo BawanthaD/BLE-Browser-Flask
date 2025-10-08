@@ -44,6 +44,22 @@
     details.config{margin-top:12px;}
     details.config summary{cursor:pointer; user-select:none; padding:8px 10px; background:#0e1627; border:1px solid var(--border); border-radius:10px;}
     .kv{display:grid; grid-template-columns:auto 1fr; gap:6px 12px; font-family:var(--mono);}
+    /* Byte editor */
+    .byte-editor { display: grid; gap: 8px; }
+    .byte-grid {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    padding: 6px; background:#0e1627; border:1px solid var(--border);
+    border-radius:10px; min-height:44px;
+    }
+    .byte-box {
+    width: 44px; height: 36px; box-sizing: border-box;
+    text-align: center; border-radius: 8px;
+    border: 1px solid var(--border); background:#1a2336; color: var(--text);
+    font-family: var(--mono); font-weight: 700; font-size: 14px;
+    }
+    .byte-tools { display: flex; gap: 8px; align-items: center; }
+    .byte-tools .grow { flex: 1 1 auto; }
+
   </style>
 </head>
 <body>
@@ -92,8 +108,27 @@
 
           <div class="ctrl-grid" style="margin-top:10px;">
             <div>
-              <label>Hex to write (e.g. 04 00 00 64)</label>
-              <input id="writeHex" class="mono" placeholder="00 00 00..." />
+              <label>Hex to write (paste or type; edit each byte below)</label>
+
+                <div class="byte-editor">
+                <!-- paste/type here to create boxes -->
+                <input id="hexPaste" class="input mono" placeholder="Paste hex here (e.g. 04 00 00 64), press Enter…" />
+
+                <!-- the boxes appear here -->
+                <div id="byteGrid" class="byte-grid" tabindex="0" aria-label="Byte editor"></div>
+
+                <!-- tools -->
+                <div class="byte-tools">
+                    <div class="muted">Length: <span id="byteCount">0</span> bytes</div>
+                    <div class="grow"></div>
+                    <button id="addByte" class="btn">+1 byte</button>
+                    <button id="clearBytes" class="btn">Clear</button>
+                </div>
+                </div>
+
+                <!-- keep the old field hidden as a fallback (optional) -->
+                <input id="writeHex" class="mono" style="display:none" />
+
             </div>
             <div>
               <button id="writeBtn" class="btn btn-primary" style="width:100%;" disabled>Write</button>
@@ -151,6 +186,13 @@
     const valuesBox = qs('#valuesBox');
     const computedBox = qs('#computedBox');
 
+    // === Byte editor ===
+    const byteGrid   = qs('#byteGrid');
+    const hexPaste   = qs('#hexPaste');
+    const addByteBtn = qs('#addByte');
+    const clearBtn   = qs('#clearBytes');
+    const byteCount  = qs('#byteCount');
+
     function log(line){ logBox.textContent += line + "\n"; logBox.parentElement.scrollTop = logBox.parentElement.scrollHeight; }
     function addValue(line){ const d=document.createElement('div'); d.textContent=line; valuesBox.appendChild(d); valuesBox.scrollTop = valuesBox.scrollHeight; }
     function setConn(connected, address){ qs('#connDot').classList.toggle('on', !!connected); qs('#connText').textContent = connected ? `Connected: ${address||''}` : 'Disconnected'; qs('#disconnectBtn').disabled = !connected; }
@@ -165,6 +207,97 @@
       }
       return out;
     }
+
+
+    function makeByteBox(val=0){
+    const inp = document.createElement('input');
+    inp.className = 'byte-box';
+    inp.maxLength = 2;
+    inp.value = (val & 0xFF).toString(16).padStart(2,'0').toUpperCase();
+
+    // filter & auto-advance
+    inp.addEventListener('input', ()=>{
+        inp.value = inp.value.replace(/[^0-9a-fA-F]/g,'').toUpperCase().slice(0,2);
+        if (inp.value.length === 2) {
+        const nx = inp.nextElementSibling;
+        if (nx && nx.tagName === 'INPUT') nx.focus();
+        }
+        updateByteCount();
+    });
+
+    // navigation/backspace between boxes
+    inp.addEventListener('keydown', (e)=>{
+        if (e.key === 'Backspace' && inp.selectionStart === 0 && inp.selectionEnd === 0) {
+        const pv = inp.previousElementSibling;
+        if (pv && pv.tagName === 'INPUT') {
+            pv.focus();
+            pv.setSelectionRange(pv.value.length, pv.value.length);
+            e.preventDefault();
+        }
+        }
+        if (e.key === 'ArrowLeft' && inp.selectionStart === 0) {
+        const pv = inp.previousElementSibling;
+        if (pv && pv.tagName === 'INPUT') { pv.focus(); pv.setSelectionRange(pv.value.length, pv.value.length); e.preventDefault(); }
+        }
+        if (e.key === 'ArrowRight' && inp.selectionStart === inp.value.length) {
+        const nx = inp.nextElementSibling;
+        if (nx && nx.tagName === 'INPUT') { nx.focus(); nx.setSelectionRange(0,0); e.preventDefault(); }
+        }
+    });
+
+    // paste multiple bytes directly into any box
+    inp.addEventListener('paste', (e)=>{
+        const txt = (e.clipboardData || window.clipboardData).getData('text');
+        const arr = parseHex(txt);
+        if (arr.length){
+        e.preventDefault();
+        setBytes(arr);
+        }
+    });
+
+    return inp;
+    }
+
+    function setBytes(bytes){
+    byteGrid.innerHTML = '';
+    (bytes || []).forEach(b => byteGrid.appendChild(makeByteBox(b)));
+    updateByteCount();
+    }
+
+    function collectBytes(){
+    const arr = [];
+    byteGrid.querySelectorAll('input.byte-box').forEach(inp=>{
+        const v = (inp.value || '').trim();
+        if (v.length > 0) arr.push(parseInt(v,16) & 0xFF);
+        else arr.push(0);
+    });
+    return arr;
+    }
+
+    function updateByteCount(){
+    byteCount.textContent = byteGrid.querySelectorAll('input.byte-box').length;
+    }
+
+    // Paste bar
+    hexPaste.addEventListener('keydown', (e)=>{
+    if (e.key === 'Enter'){
+        const arr = parseHex(hexPaste.value);
+        setBytes(arr);
+        hexPaste.value = '';
+    }
+    });
+    hexPaste.addEventListener('paste', ()=>{
+    // let the input receive the paste, then parse
+    setTimeout(()=>{
+        const arr = parseHex(hexPaste.value);
+        if (arr.length) { setBytes(arr); hexPaste.value=''; }
+    }, 0);
+    });
+
+    // Tools
+    addByteBtn.onclick = ()=>{ byteGrid.appendChild(makeByteBox(0)); updateByteCount(); };
+    clearBtn.onclick   = ()=>{ setBytes([]); };
+
     function renderComputed(obj){
       computedBox.innerHTML = '';
       const wrap = document.createElement('div'); wrap.className='kv';
@@ -281,12 +414,22 @@
     };
 
     writeBtn.onclick = async ()=>{
-      if(!currentUUID) return;
-      const bytes = parseHex(writeHex.value);
-      const resp = await fetch('/api/write', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({uuid:currentUUID, bytes})});
-      const data = await resp.json();
-      if(!data.ok) log('[WRITE ERROR] '+(data.error||'')); 
+    if (!currentUUID) return;
+    // Prefer bytes from the boxes. If none, fall back to hidden field.
+    let bytes = collectBytes();
+    if (!bytes.length) bytes = parseHex(writeHex.value);
+
+    if (!bytes.length) { log('[WRITE ERROR] No bytes to write'); return; }
+
+    const resp = await fetch('/api/write', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({uuid: currentUUID, bytes})
+    });
+    const data = await resp.json();
+    if (!data.ok) log(`[WRITE ERROR] ${data.error||''}`);
     };
+
 
     notifyBtn.onclick = async ()=>{
       if(!currentUUID) return;
